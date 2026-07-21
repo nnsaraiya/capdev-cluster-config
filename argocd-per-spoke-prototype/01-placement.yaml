@@ -1,6 +1,14 @@
-# Matches spoke-cluster, mirroring hub/gitops-integration/02-placement.yaml.
-# Kept as its own object (not reused) so this prototype has zero shared
-# state with the real GitOps integration Placement.
+# Matches on a label (capdev.residency/role=spoke), not one hardcoded
+# ManagedCluster name — so any current or future spoke imported into the
+# clusterSet below gets the GitOps-operator install + local-ArgoCD
+# bootstrap automatically, with zero edits to this file. This is the one
+# change made specifically for Globe: the sandbox version of this file
+# matched name: spoke-cluster directly, which doesn't scale past one spoke.
+#
+# BEFORE APPLYING: label every spoke ManagedCluster on the hub with
+#   oc label managedcluster <name> capdev.residency/role=spoke
+# CONFIRM clusterSets below matches whatever ManagedClusterSet Globe's
+# spokes actually belong to — don't assume "default" carries over.
 apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
@@ -12,8 +20,5 @@ spec:
   predicates:
     - requiredClusterSelector:
         labelSelector:
-          matchExpressions:
-            - key: name
-              operator: In
-              values:
-                - spoke-cluster
+          matchLabels:
+            capdev.residency/role: spoke

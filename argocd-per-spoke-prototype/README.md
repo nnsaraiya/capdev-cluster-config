@@ -16,14 +16,14 @@ on the spoke via a Subscription, and (2) bootstrap that spoke's own local
 ArgoCD with an Application, entirely independent of the hub's ArgoCD.
 Whatever works here should also work on Globe's actual hub.
 
-## Why it's not wired into the existing bootstrap Applications
-`hub-bootstrap` and `spoke-capdev-bootstrap` (the two existing, proven,
-manually-applied Applications) already own the live RBAC/namespace/
-GitOpsCluster resources on the hub and spoke. If this prototype's spoke-
-local ArgoCD were pointed at that same content, two independent ArgoCD
-instances would both try to own and prune the same live objects — a real
-risk of ownership flapping or unexpected deletion, not just a style
-concern. Instead, `03-policy-bootstrap-local-argocd.yaml` points the
+## Why it's not wired into the RBAC/namespace content in this repo
+(`hub-bootstrap`/`spoke-capdev-bootstrap`, the two Applications that used
+to own this content under the retired hub-push model, are gone now — see
+the top-level README.md. The reasoning below still applies to why this
+prototype uses its own throwaway payload rather than `hub/rbac`/
+`spoke-capdev/`.) Two independent ArgoCD instances both trying to own and
+prune the same live RBAC objects is a real risk of ownership flapping or
+unexpected deletion, not just a style concern. Instead, `03-policy-bootstrap-local-argocd.yaml` points the
 spoke's new local ArgoCD at `nginx-demo-local/` in *this* repo path — the
 same nginx-unprivileged workload as `capdev-business-apps`'s `nginx-demo`,
 deployed a second, independent way, into its own non-colliding namespace —
@@ -42,9 +42,11 @@ concrete side-by-side comparison against the hub-push nginx-demo.)
   `hub/gitops-integration/01-managedclustersetbinding.yaml`, just scoped to
   a different namespace so this prototype doesn't share objects with the
   real GitOps integration).
-- `01-placement.yaml` — matches `spoke-cluster`, mirroring
-  `hub/gitops-integration/02-placement.yaml` (kept as a separate object
-  rather than reusing that one, for the same isolation reason above).
+- `01-placement.yaml` — matches on a label
+  (`capdev.residency/role: spoke`), not one hardcoded cluster name, so any
+  current or future spoke gets this automatically once labeled. Every
+  spoke `ManagedCluster` needs this label applied on the hub before
+  applying: `oc label managedcluster <name> capdev.residency/role=spoke`.
 - `02-policy-install-gitops-operator.yaml` — Policy + PlacementBinding
   that installs the OpenShift GitOps Operator via Subscription in
   `openshift-operators` (the standard, documented install path — no addon
@@ -92,6 +94,46 @@ a real, generalizable finding: **any** future spoke's local ArgoCD will
 need an equivalent per-namespace RoleBinding before it can deploy anything
 beyond the operator's own default allow-list — worth remembering if this
 pattern gets adopted for real business apps later.
+
+## Before applying this to Globe
+1. **Label every spoke `ManagedCluster`** with `capdev.residency/role=spoke`
+   on the hub (see `01-placement.yaml`) — without this, the Placement
+   matches nothing and none of these Policies will apply anywhere.
+2. **Replace `<GITLAB_REPO_URL>`** in
+   `03-policy-bootstrap-local-argocd.yaml` with this repo's real GitLab
+   URL once it exists.
+3. **If the GitLab repo is private (assume it is)**, the spoke's local
+   ArgoCD needs a repository-credential `Secret` before it can clone
+   anything — it has no credentials configured by default, unlike this
+   sandbox's public GitHub repos. Standard shape (HTTPS token; adjust if
+   using an SSH deploy key instead):
+   ```yaml
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: capdev-cluster-config-repo-creds
+     namespace: openshift-gitops
+     labels:
+       argocd.argoproj.io/secret-type: repository
+   stringData:
+     url: <GITLAB_REPO_URL>/capdev-cluster-config.git
+     username: <token-username-or-placeholder>
+     password: <TOKEN — never commit the real value>
+   type: Opaque
+   ```
+   This needs to exist on **every** spoke, same "every current and future
+   spoke" scaling concern as everything else here — so it's worth
+   delivering the same way (a `musthave` object-template in a Policy bound
+   to the same Placement), with the real token value populated out-of-band
+   per spoke, never committed to git — same treatment as the HTPasswd
+   secret.
+4. **Confirm OLM catalog reachability** — `02-policy-install-gitops-operator.yaml`
+   depends on the `redhat-operators` `CatalogSource` being reachable from
+   each spoke. If Globe's spokes are disconnected/mirrored, `source`/
+   `sourceNamespace` need to point at Globe's mirror instead.
+5. **Confirm the real `ManagedClusterSet` name** in both
+   `00-namespace-and-binding.yaml` and `01-placement.yaml` — don't assume
+   `default` carries over.
 
 ## What this does NOT decide yet
 This proves the *mechanism*. It does not migrate `capdev-cluster-config`
