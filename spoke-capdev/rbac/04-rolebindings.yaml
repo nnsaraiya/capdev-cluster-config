@@ -83,31 +83,41 @@ subjects:
   - kind: Group
     apiGroup: rbac.authorization.k8s.io
     name: capdev-platform-eng
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: capdev-platform-eng-admin-logging
-  namespace: openshift-logging
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: admin
-subjects:
-  - kind: Group
-    apiGroup: rbac.authorization.k8s.io
-    name: capdev-platform-eng
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: capdev-platform-eng-admin-compliance
-  namespace: openshift-compliance
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: admin
-subjects:
-  - kind: Group
-    apiGroup: rbac.authorization.k8s.io
-    name: capdev-platform-eng
+
+# capdev-platform-eng-admin-logging and capdev-platform-eng-admin-compliance
+# are commented out until Tier 1/2/3 operators are actually installed
+# (Sprint 2+, per the "Known interim state" note in README.md). ArgoCD's
+# automated sync can't create a RoleBinding in a namespace that doesn't
+# exist yet — live testing confirmed this fails the whole Application sync
+# (retries exhausted, hard Failed state) rather than just leaving these two
+# resources harmlessly OutOfSync. Uncomment once openshift-logging and
+# openshift-compliance exist (adjust names first if the operators land in
+# different namespaces than assumed here).
+#
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: capdev-platform-eng-admin-logging
+#   namespace: openshift-logging
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: admin
+# subjects:
+#   - kind: Group
+#     apiGroup: rbac.authorization.k8s.io
+#     name: capdev-platform-eng
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: RoleBinding
+# metadata:
+#   name: capdev-platform-eng-admin-compliance
+#   namespace: openshift-compliance
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: admin
+# subjects:
+#   - kind: Group
+#     apiGroup: rbac.authorization.k8s.io
+#     name: capdev-platform-eng
