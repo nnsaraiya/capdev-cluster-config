@@ -3,10 +3,14 @@
 # capdev-cluster-config repo (RBAC, namespaces, and later operators/oauth)
 # syncs declaratively from here.
 #
-# destination.server is used directly (rather than destination.name) so this
-# works regardless of the exact ManagedCluster name — once you've confirmed
-# the GitOpsCluster secret exists (see 03-gitopscluster.yaml), you can switch
-# to `destination.name: spoke-cluster` if preferred.
+# destination.name (not .server): live testing against the hub showed the
+# GitOpsCluster controller in this ACM build registers the spoke via the
+# cluster-proxy tunnel (server = https://cluster-proxy-addon-user...:9092/
+# spoke-cluster), not the spoke's direct API URL — so a destination.server
+# set to the direct API URL never matches the registered cluster and ArgoCD
+# reports "cluster ... not found". destination.name matches the cluster
+# secret's `name` field (= the ManagedCluster name) regardless of which
+# server URL/mechanism ACM used to register it.
 #
 # CONFIRM repoURL once you've created capdev-cluster-config under your
 # GitHub account/org — update if the org/namespace differs from "nnsaraiya".
@@ -25,7 +29,7 @@ spec:
     directory:
       recurse: true
   destination:
-    server: https://api.spoke-cluster.sandbox3978.opentlc.com:6443
+    name: spoke-cluster
     namespace: openshift-gitops
   syncPolicy:
     automated:
