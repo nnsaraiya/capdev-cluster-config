@@ -7,10 +7,15 @@
 # involvement from the hub's ArgoCD or the cluster-proxy tunnel the
 # existing push-model setup depends on.
 #
-# Points at test-payload/ in THIS repo (not spoke-capdev/) deliberately —
-# see README.md for why: pointing this at the same content the existing
-# push-model spoke-capdev-bootstrap Application already owns would mean
+# Points at nginx-demo-local/ in THIS repo (not spoke-capdev/, and not
+# capdev-business-apps at all) deliberately — see README.md for why:
+# pointing this at the same content the existing push-model
+# spoke-capdev-bootstrap/nginx-demo Applications already own would mean
 # two independent ArgoCD instances fighting over the same live objects.
+# It's the same nginx-unprivileged workload as capdev-business-apps'
+# nginx-demo, deployed a second, independent way — a direct, visual
+# side-by-side proof that the spoke-local sync produces the same real
+# result as the hub-push model, in its own non-colliding namespace.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -34,14 +39,14 @@ spec:
                 apiVersion: argoproj.io/v1alpha1
                 kind: Application
                 metadata:
-                  name: pull-model-test
+                  name: nginx-demo-pull-model
                   namespace: openshift-gitops
                 spec:
                   project: default
                   source:
                     repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
                     targetRevision: main
-                    path: argocd-per-spoke-prototype/test-payload
+                    path: argocd-per-spoke-prototype/nginx-demo-local
                   destination:
                     server: https://kubernetes.default.svc
                     namespace: capdev-argocd-per-spoke-test

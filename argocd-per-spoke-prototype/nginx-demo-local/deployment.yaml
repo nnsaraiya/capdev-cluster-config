@@ -1,0 +1,32 @@
+# Same real workload as capdev-business-apps/spoke-capdev/nginx-demo, but
+# deployed via the spoke's own LOCAL ArgoCD (Policy-bootstrapped) instead
+# of the hub's push model — a visual, side-by-side proof that the two
+# mechanisms produce the same real result. nginxinc/nginx-unprivileged
+# again (not a UBI S2I builder image — that mistake was already made and
+# fixed once on the hub-push nginx-demo).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-demo-pull-model
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-demo-pull-model
+  template:
+    metadata:
+      labels:
+        app: nginx-demo-pull-model
+    spec:
+      containers:
+      - name: nginx-demo-pull-model
+        image: docker.io/nginxinc/nginx-unprivileged:stable
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

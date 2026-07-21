@@ -1,0 +1,10 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nginx-demo-pull-model
+spec:
+  to:
+    kind: Service
+    name: nginx-demo-pull-model
+  port:
+    targetPort: 8080

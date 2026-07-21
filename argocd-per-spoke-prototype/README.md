@@ -24,11 +24,15 @@ local ArgoCD were pointed at that same content, two independent ArgoCD
 instances would both try to own and prune the same live objects — a real
 risk of ownership flapping or unexpected deletion, not just a style
 concern. Instead, `03-policy-bootstrap-local-argocd.yaml` points the
-spoke's new local ArgoCD at `test-payload/` in *this* repo path — a
-throwaway ConfigMap that nothing else touches — purely to prove the
-mechanism (operator installs → local ArgoCD comes up → Policy creates a
-local Application → that Application syncs from git, entirely on its own,
-independent of the hub) without touching anything already relied upon.
+spoke's new local ArgoCD at `nginx-demo-local/` in *this* repo path — the
+same nginx-unprivileged workload as `capdev-business-apps`'s `nginx-demo`,
+deployed a second, independent way, into its own non-colliding namespace —
+purely to prove the mechanism (operator installs → local ArgoCD comes up →
+Policy creates a local Application → that Application syncs a real
+workload from git, entirely on its own, independent of the hub) without
+touching anything already relied upon. (An earlier iteration used a bare
+ConfigMap for the same proof; replaced with a real workload for a more
+concrete side-by-side comparison against the hub-push nginx-demo.)
 
 ## What's here
 - `00-namespace-and-binding.yaml` — dedicated `capdev-policies` namespace
@@ -53,9 +57,11 @@ independent of the hub) without touching anything already relied upon.
   https://kubernetes.default.svc` — local to the spoke, not the hub. This
   is what proves "Applications synced directly on the spoke, independent
   of the hub" actually works.
-- `test-payload/` — a single throwaway ConfigMap; the thing the local
-  Application actually syncs, chosen specifically so it can't collide with
-  anything the existing push-model setup owns.
+- `nginx-demo-local/` — the same nginx-unprivileged Deployment/Service/
+  Route as `capdev-business-apps`'s `nginx-demo`, in its own namespace
+  (`capdev-argocd-per-spoke-test`) so it can't collide with anything the
+  existing push-model setup owns. This is what the local Application
+  actually syncs.
 
 ## Manual apply (same "ArgoCD is the sole manual install" principle)
 Apply in order, on the **hub**:
