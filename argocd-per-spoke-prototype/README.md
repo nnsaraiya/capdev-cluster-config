@@ -122,29 +122,29 @@ push-model setup needed, which got deleted along with it during cleanup.
 needed for Option A; Option B (manual `oc apply` as `kube:admin`) already
 has all of it.
 
-## Known finding: automated sync re-enforces whatever is committed, including placeholders
+## Known finding: automated sync re-enforces whatever is committed
 Confirmed live: with Option A applied, `03-policy-bootstrap-local-argocd.yaml`'s
 `ConfigurationPolicy` re-enforces the nested Application's `repoURL` from
-whatever is actually committed in git — including the `<GITLAB_SSH_REPO_URL>`
-placeholder, if that hasn't been replaced yet. This resets the local
-Application to `Unknown` sync status (can't compare against an
-unreachable placeholder URL) — though already-deployed resources are
-*not* pruned, since ArgoCD never completes a new sync to act on. Net:
-don't turn on Option A for real until `<GITLAB_SSH_REPO_URL>` is actually
-replaced in `03-policy-bootstrap-local-argocd.yaml` (and in
-`bootstrap/argocd-per-spoke-bootstrap.yaml` if using Option A), or it'll
-just keep resetting itself to a broken state on every reconcile.
+whatever is actually committed in git. Both `repoURL`s in this folder are
+currently set to the sandbox's real public GitHub repo (marked
+`TODO(globe)`) specifically so this runs live for real here — if either
+were ever left as an unreachable placeholder instead, the affected
+Application would reset to `Unknown` sync status on every reconcile
+(though already-deployed resources wouldn't be pruned, since ArgoCD never
+completes a new sync to act on). Worth remembering when the `TODO(globe)`
+swap happens: an unreachable URL breaks sync silently-ish, it doesn't
+just get ignored.
 
 ## Before applying this to Globe
 1. **Label every spoke `ManagedCluster`** with `capdev.residency/role=spoke`
    on the hub (see `01-placement.yaml`) — without this, the Placement
    matches nothing and none of these Policies will apply anywhere.
-2. **Replace `<GITLAB_SSH_REPO_URL>`** in both
+2. **Replace both `TODO(globe)` `repoURL`s** — in
    `03-policy-bootstrap-local-argocd.yaml` and (if using Option A)
-   `../bootstrap/argocd-per-spoke-bootstrap.yaml` with this repo's real
+   `../bootstrap/argocd-per-spoke-bootstrap.yaml` — with this repo's real
    GitLab SSH URL once it exists (SSH form:
    `git@<gitlab-host>:<group>/capdev-cluster-config.git`, not `https://...`
-   — required since auth here is an SSH deploy key, not a token).
+   — required since auth there is an SSH deploy key, not a token).
 3. **GitLab is private, auth is an SSH deploy key** — no ArgoCD instance
    has credentials configured by default (unlike this sandbox's public
    GitHub repos), so each one needs a repository-credential `Secret`

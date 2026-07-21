@@ -38,9 +38,14 @@ metadata:
 spec:
   project: default
   source:
-    # REPLACE before applying to Globe — same GitLab SSH URL as
+    # TODO(globe): this is the sandbox's real public GitHub repo, used so
+    # this can run live for real here. REPLACE with Globe's actual GitLab
+    # SSH URL before/when porting — same URL as
     # argocd-per-spoke-prototype/03-policy-bootstrap-local-argocd.yaml.
-    repoURL: <GITLAB_SSH_REPO_URL>/capdev-cluster-config.git
+    # Once switched to GitLab (private), also set up the SSH deploy-key
+    # repository-credential Secret described in argocd-per-spoke-prototype/
+    # README.md — not needed for this public GitHub repo.
+    repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
     targetRevision: main
     path: argocd-per-spoke-prototype
     directory:

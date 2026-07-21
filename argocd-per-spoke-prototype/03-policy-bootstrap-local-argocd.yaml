@@ -78,13 +78,17 @@ spec:
                 spec:
                   project: default
                   source:
-                    # REPLACE before applying to Globe — this repo's real
-                    # GitLab SSH URL (git@<gitlab-host>:<group>/capdev-cluster-config.git).
-                    # Must be SSH form, not https://, since auth is an SSH
-                    # deploy key — ArgoCD also needs a repository-credential
-                    # Secret with that key before it can clone this at all
-                    # (see README.md).
-                    repoURL: <GITLAB_SSH_REPO_URL>/capdev-cluster-config.git
+                    # TODO(globe): sandbox's real public GitHub repo, so
+                    # this runs live for real here. REPLACE with Globe's
+                    # actual GitLab SSH URL
+                    # (git@<gitlab-host>:<group>/capdev-cluster-config.git)
+                    # before/when porting. Must be SSH form, not https://,
+                    # once it's GitLab — auth there is an SSH deploy key,
+                    # and ArgoCD (on each spoke) needs a repository-
+                    # credential Secret with that key before it can clone
+                    # this at all (see README.md). Not needed for this
+                    # public GitHub repo.
+                    repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
                     targetRevision: main
                     path: argocd-per-spoke-prototype/nginx-demo-local
                   destination:
