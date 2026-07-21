@@ -16,8 +16,9 @@ metadata:
   namespace: openshift-gitops
 spec:
   argoServer:
-    cluster:
-      name: local-cluster
+    # argoServer.cluster is a string per the CRD ("not used and reserved"
+    # per `oc explain`) — omit it rather than nesting an object, which the
+    # apiserver rejects with a type-validation error.
     argoNamespace: openshift-gitops
   placementRef:
     kind: Placement
