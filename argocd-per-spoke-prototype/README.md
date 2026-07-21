@@ -110,6 +110,31 @@ need an equivalent per-namespace RoleBinding before it can deploy anything
 beyond the operator's own default allow-list — worth remembering if this
 pattern gets adopted for real business apps later.
 
+## Known finding: the hub's ArgoCD has the same narrow default (Option A only)
+The **same** narrow-allow-list behavior above applies to the hub's
+existing ArgoCD, not just the spoke's — confirmed live when first testing
+`bootstrap/argocd-per-spoke-bootstrap.yaml`: it couldn't create
+`ManagedClusterSetBinding`/`Placement`/`Policy`/`PlacementBinding`
+(`is forbidden`), and `ManagedClusterSetBinding` additionally needs the
+`managedclustersets/bind` admission-webhook grant — the same one the old
+push-model setup needed, which got deleted along with it during cleanup.
+`00-namespace-and-binding.yaml` now grants both. This RBAC is **only**
+needed for Option A; Option B (manual `oc apply` as `kube:admin`) already
+has all of it.
+
+## Known finding: automated sync re-enforces whatever is committed, including placeholders
+Confirmed live: with Option A applied, `03-policy-bootstrap-local-argocd.yaml`'s
+`ConfigurationPolicy` re-enforces the nested Application's `repoURL` from
+whatever is actually committed in git — including the `<GITLAB_SSH_REPO_URL>`
+placeholder, if that hasn't been replaced yet. This resets the local
+Application to `Unknown` sync status (can't compare against an
+unreachable placeholder URL) — though already-deployed resources are
+*not* pruned, since ArgoCD never completes a new sync to act on. Net:
+don't turn on Option A for real until `<GITLAB_SSH_REPO_URL>` is actually
+replaced in `03-policy-bootstrap-local-argocd.yaml` (and in
+`bootstrap/argocd-per-spoke-bootstrap.yaml` if using Option A), or it'll
+just keep resetting itself to a broken state on every reconcile.
+
 ## Before applying this to Globe
 1. **Label every spoke `ManagedCluster`** with `capdev.residency/role=spoke`
    on the hub (see `01-placement.yaml`) — without this, the Placement
