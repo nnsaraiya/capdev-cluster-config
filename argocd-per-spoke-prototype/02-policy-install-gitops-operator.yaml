@@ -11,10 +11,15 @@
 # deleting the ArgoCD custom resource itself did NOT come back, because
 # nothing declared it musthave. The operator reinstalling doesn't re-create
 # a default instance it thinks already exists/existed. The second
-# object-template below closes that gap: it's the same minimal spec the
-# operator would have created on its own (no customization was ever made),
-# so this is a no-op if the ArgoCD resource already exists, and a real fix
-# if it's ever deleted again.
+# object-template below closes that gap.
+#
+# spec.server.route.enabled: true is NOT a no-op default — confirmed live
+# the hard way: a bare `spec: {}` recreation came back with no Route for
+# the ArgoCD server (CRD's raw schema default is route disabled), even
+# though the operator's own original first-time auto-provisioning had it
+# enabled. "No customization was ever made" turned out to be true for
+# everything except this one field. Set explicitly so a future recreation
+# doesn't quietly drop server reachability.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -55,7 +60,10 @@ spec:
                 metadata:
                   name: openshift-gitops
                   namespace: openshift-gitops
-                spec: {}
+                spec:
+                  server:
+                    route:
+                      enabled: true
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
