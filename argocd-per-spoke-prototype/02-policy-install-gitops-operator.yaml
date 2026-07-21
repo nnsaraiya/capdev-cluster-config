@@ -4,7 +4,17 @@
 # framework involved (deliberately, since that framework's gitops-addon is
 # ACM 2.13+ only and Globe's hub is on 2.11). Once OLM reconciles this, the
 # operator auto-creates a default ArgoCD instance in a new openshift-gitops
-# namespace on that cluster.
+# namespace on that cluster — but only ever once, on first install.
+#
+# Confirmed live: deleting the Subscription self-heals (this Policy
+# recreates it, near-instantly) and OLM reinstalls the operator fine — but
+# deleting the ArgoCD custom resource itself did NOT come back, because
+# nothing declared it musthave. The operator reinstalling doesn't re-create
+# a default instance it thinks already exists/existed. The second
+# object-template below closes that gap: it's the same minimal spec the
+# operator would have created on its own (no customization was ever made),
+# so this is a no-op if the ArgoCD resource already exists, and a real fix
+# if it's ever deleted again.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -38,6 +48,14 @@ spec:
                   source: redhat-operators
                   sourceNamespace: openshift-marketplace
                   installPlanApproval: Automatic
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: argoproj.io/v1beta1
+                kind: ArgoCD
+                metadata:
+                  name: openshift-gitops
+                  namespace: openshift-gitops
+                spec: {}
 ---
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
