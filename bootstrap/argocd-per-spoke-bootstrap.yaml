@@ -22,6 +22,14 @@
 # controllers are self-healing and would likely converge without it, but
 # explicit ordering removes any doubt and matches how this repo already
 # orders namespaces before RoleBindings elsewhere.
+#
+# directory.exclude on nginx-demo-local/ is required, not cosmetic —
+# confirmed live: without it, this Application's own recursive source
+# also picks up nginx-demo-local/'s raw Deployment/Service/Route/
+# kustomization.yaml and tries to deploy them directly on the HUB (this
+# Application's destination). Those manifests are only ever meant to
+# reach the SPOKE, via the nested Application Policy 03 creates there —
+# they must never be part of what THIS Application applies directly.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -37,6 +45,7 @@ spec:
     path: argocd-per-spoke-prototype
     directory:
       recurse: true
+      exclude: "nginx-demo-local/*"
   destination:
     server: https://kubernetes.default.svc
     namespace: capdev-policies
