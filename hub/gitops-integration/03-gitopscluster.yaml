@@ -1,0 +1,25 @@
+# Ties the Placement above to your existing ArgoCD (openshift-gitops)
+# instance. Once applied, the ACM gitopscluster controller creates a cluster
+# Secret in the openshift-gitops namespace for every ManagedCluster matched
+# by the Placement — equivalent to `argocd cluster add`, but automatic and
+# GitOps-managed.
+#
+# Verify after applying:
+#   oc get gitopscluster -n openshift-gitops
+#   oc get secret -n openshift-gitops -l argocd.argoproj.io/secret-type=cluster
+#   argocd cluster list   (should now show the spoke)
+
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  name: capdev-gitopscluster
+  namespace: openshift-gitops
+spec:
+  argoServer:
+    cluster:
+      name: local-cluster
+    argoNamespace: openshift-gitops
+  placementRef:
+    kind: Placement
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    name: capdev-spoke-placement

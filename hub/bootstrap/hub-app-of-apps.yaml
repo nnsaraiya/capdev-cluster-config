@@ -1,0 +1,35 @@
+# Root Application for the hub cluster itself — syncs hub/rbac and
+# hub/gitops-integration (Groups, ACM-governance ClusterRole, and the
+# GitOpsCluster/Placement/ManagedClusterSetBinding trio) to local-cluster.
+#
+# This targets the hub in-cluster (https://kubernetes.default.svc) since no
+# ACM registration is needed for ArgoCD to manage the cluster it runs on.
+#
+# NOTE: this Application creates the very GitOpsCluster/Placement objects
+# that register the spoke — apply this one first, confirm the spoke's
+# cluster Secret appears (see 03-gitopscluster.yaml verification commands),
+# THEN apply hub/bootstrap/spoke-capdev-app-of-apps.yaml.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hub-bootstrap
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
+    targetRevision: main
+    path: hub
+    directory:
+      recurse: true
+      exclude: "bootstrap/*"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

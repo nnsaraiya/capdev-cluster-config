@@ -1,0 +1,25 @@
+# Custom ClusterRole — hub (vlo-ocp-mgt)
+#
+# The hub is a shared control plane governing every managed cluster, so
+# nobody gets broad `edit`/`admin` here. This role grants edit ONLY on the
+# ACM/MCE API groups — enough for platform-eng to do multi-cluster
+# governance work (Policy, PlacementRule/PlacementBinding, ManifestWork,
+# ManagedCluster) without touching anything else on the hub.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capdev-acm-governance-edit
+rules:
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclusters", "placements"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["policy.open-cluster-management.io"]
+    resources: ["policies", "placementbindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["work.open-cluster-management.io"]
+    resources: ["manifestworks"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps.open-cluster-management.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

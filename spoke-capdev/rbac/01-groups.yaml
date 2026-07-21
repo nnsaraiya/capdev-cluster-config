@@ -1,0 +1,40 @@
+# OpenShift Groups — spoke-capdev
+#
+# NOTE (known interim state): these Group objects are duplicated on the hub
+# and on spoke-capdev because identity is still per-cluster HTPasswd (Sprint 1
+# interim). Once the hub-federated identity broker (RHSSO/Keycloak, Option B)
+# is live and bound to LDAP, group membership should be sourced from LDAP
+# groups instead of being hand-maintained here on each cluster. When that
+# lands, only the `name:` fields below need to change to match the LDAP group
+# CNs — all RBAC bindings elsewhere reference these names, not user lists,
+# so the rename is a single-line diff per group.
+#
+# Usernames below match the local-part of each person's existing Globe email
+# address (see capdev-cluster-config/README-identity.md for provisioning
+# notes — HTPasswd secret itself is NOT committed to git).
+
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: capdev-ops
+users:
+  - shienneth.concepcion   # Shen Concepcion — SPM Tier2 (Ops)
+  - jrtorres               # Jerico Torres — SPM Tier2 (Ops)
+  - jcbaltazar              # JE Baltazar — SPM Tier2 (Ops)
+  - rmracela                # Renzt Racela — SPM Tier2 (Ops)
+---
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: capdev-platform-eng
+users:
+  - lftaruc                 # Lyberius Taruc — SPE-CNPE (Planning & Engineering)
+  - johnjerjie.reyes        # John Jerjie Reyes — SPE-CNPE (Planning & Engineering)
+---
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: capdev-nfv-ops
+users:
+  - jsnerit                 # Joseph Nerit — CA-NFV (Ops)
+  - jeronimo.leron          # Jeronimo Leron — CA-NFV (Ops)

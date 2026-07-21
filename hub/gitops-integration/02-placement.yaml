@@ -1,0 +1,22 @@
+# Selects which ManagedCluster(s) get auto-registered with ArgoCD.
+#
+# CONFIRM the value "spoke-cluster" below matches the actual ManagedCluster
+# name: `oc get managedclusters` on the hub. ACM assigns this name at import
+# time — it may not exactly match the API hostname (spoke-cluster.sandbox3978...).
+
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: capdev-spoke-placement
+  namespace: openshift-gitops
+spec:
+  clusterSets:
+    - default
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: name
+              operator: In
+              values:
+                - spoke-cluster

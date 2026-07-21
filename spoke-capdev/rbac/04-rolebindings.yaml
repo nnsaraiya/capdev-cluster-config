@@ -1,0 +1,113 @@
+# Namespace-scoped bindings — spoke-capdev
+#
+# capdev-ops and capdev-nfv-ops get `edit` in the two working namespaces
+# defined in ../namespaces/ (capdev-workloads, capdev-lab) — enough to run
+# and troubleshoot day-2 workloads without touching platform/operator
+# namespaces, which stay GitOps-only.
+#
+# capdev-platform-eng gets `admin` on the platform/operator namespaces they
+# actually build — Tier 1/2/3 operators and OpenShift GitOps — since they
+# need to debug that layer directly during residency sprints.
+#
+# Namespace names here (openshift-gitops, openshift-logging, etc.) match the
+# expected Tier 1/2/3 operator install targets; update if actual install
+# namespaces differ once operators land.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-ops-edit
+  namespace: capdev-workloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-ops-edit-lab
+  namespace: capdev-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-nfv-ops-edit
+  namespace: capdev-workloads
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-nfv-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-nfv-ops-edit-lab
+  namespace: capdev-lab
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-nfv-ops
+---
+# Platform engineering: admin on GitOps + Tier 1/2/3 operator namespaces
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-platform-eng-admin-gitops
+  namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-platform-eng
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-platform-eng-admin-logging
+  namespace: openshift-logging
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-platform-eng
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: capdev-platform-eng-admin-compliance
+  namespace: openshift-compliance
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-platform-eng

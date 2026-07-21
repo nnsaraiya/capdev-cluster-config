@@ -1,0 +1,70 @@
+# Working namespaces for capdev-ops / capdev-nfv-ops edit access.
+#
+# capdev-workloads: intended landing zone for business-app / Day 2 workload
+#   troubleshooting once capdev-business-apps starts deploying real apps.
+# capdev-lab: sandbox for hands-on residency exercises (Sprint 1 oc CLI
+#   labs, RBAC practice, etc.) — separate from real workloads so lab
+#   exercises can't collide with anything real.
+#
+# ResourceQuota is deliberately conservative: this is a 3-node compact
+# cluster (control plane + workload co-located on hst04/05/06), so runaway
+# resource requests from lab exercises are a real risk, not a formality.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capdev-workloads
+  labels:
+    capdev.residency/purpose: workloads
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capdev-lab
+  labels:
+    capdev.residency/purpose: lab-sandbox
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: capdev-workloads-quota
+  namespace: capdev-workloads
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "40"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: capdev-lab-quota
+  namespace: capdev-lab
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "4"
+    limits.memory: 8Gi
+    pods: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: capdev-lab-limits
+  namespace: capdev-lab
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: 512Mi
+      defaultRequest:
+        cpu: "100m"
+        memory: 128Mi

@@ -1,0 +1,35 @@
+# Root Application — the one manually-applied piece per the "ArgoCD is the
+# sole manual install" principle. Everything under spoke-capdev/ in the
+# capdev-cluster-config repo (RBAC, namespaces, and later operators/oauth)
+# syncs declaratively from here.
+#
+# destination.server is used directly (rather than destination.name) so this
+# works regardless of the exact ManagedCluster name — once you've confirmed
+# the GitOpsCluster secret exists (see 03-gitopscluster.yaml), you can switch
+# to `destination.name: spoke-cluster` if preferred.
+#
+# CONFIRM repoURL once you've created capdev-cluster-config under your
+# GitHub account/org — update if the org/namespace differs from "nnsaraiya".
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spoke-capdev-bootstrap
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
+    targetRevision: main
+    path: spoke-capdev
+    directory:
+      recurse: true
+  destination:
+    server: https://api.spoke-cluster.sandbox3978.opentlc.com:6443
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

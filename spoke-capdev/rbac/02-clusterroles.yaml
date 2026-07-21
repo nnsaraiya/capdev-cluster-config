@@ -1,0 +1,21 @@
+# Custom ClusterRoles — spoke-capdev
+#
+# Built-in `view`, `edit`, and `admin` ClusterRoles cover most of what's
+# needed. This file only adds the one role built-ins don't cover: network-
+# focused edit access for the CA-NFV (carrier network) ops group.
+#
+# Adjust apiGroups/resources below once the actual CNI/Multus CRDs installed
+# on this cluster are confirmed (e.g. if SR-IOV or whereabouts IPAM CRDs are
+# added later, extend this role rather than granting cluster-admin).
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capdev-nfv-network-edit
+rules:
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["k8s.cni.cncf.io"]
+    resources: ["network-attachment-definitions"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

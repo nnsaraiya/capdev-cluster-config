@@ -1,0 +1,57 @@
+# Bindings — hub (vlo-ocp-mgt)
+#
+# Baseline: everyone gets cluster-wide `view` on the hub — visibility into
+# ManagedCluster status and multi-cluster governance state, without write
+# access. Only capdev-platform-eng gets write, and only on ACM API groups.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-ops-view-hub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-nfv-ops-view-hub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-nfv-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-platform-eng-view-hub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-platform-eng
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-platform-eng-acm-governance
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capdev-acm-governance-edit
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-platform-eng

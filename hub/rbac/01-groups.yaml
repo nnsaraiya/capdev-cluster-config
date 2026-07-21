@@ -1,0 +1,31 @@
+# OpenShift Groups — hub (vlo-ocp-mgt)
+#
+# Same known-interim duplication note as spoke-capdev/rbac/01-groups.yaml:
+# these are hand-maintained until the hub-federated identity broker
+# (RHSSO/Keycloak) is live and sourcing group membership from LDAP.
+
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: capdev-ops
+users:
+  - shienneth.concepcion
+  - jrtorres
+  - jcbaltazar
+  - rmracela
+---
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: capdev-platform-eng
+users:
+  - lftaruc
+  - johnjerjie.reyes
+---
+apiVersion: user.openshift.io/v1
+kind: Group
+metadata:
+  name: capdev-nfv-ops
+users:
+  - jsnerit
+  - jeronimo.leron

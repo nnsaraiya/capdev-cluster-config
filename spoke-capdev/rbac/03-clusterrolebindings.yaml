@@ -1,0 +1,63 @@
+# Cluster-wide bindings — spoke-capdev
+#
+# Baseline: every residency group gets cluster-wide `view` — shared
+# visibility across the team regardless of role, consistent with ITIL-style
+# shared situational awareness for incident/problem management.
+#
+# Namespace-scoped `edit`/`admin` grants live in 04-rolebindings.yaml instead
+# of here, so that manual write access does NOT extend into openshift-*
+# and operator namespaces — those stay GitOps-managed only.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-ops-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-ops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-platform-eng-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-platform-eng
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-nfv-ops-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-nfv-ops
+---
+# CA-NFV ops also gets the custom network-edit role cluster-wide, reflecting
+# their carrier-network remit (NetworkPolicy, Multus NAD).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-nfv-ops-network-edit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capdev-nfv-network-edit
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: capdev-nfv-ops
