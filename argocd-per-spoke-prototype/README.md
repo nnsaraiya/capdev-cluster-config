@@ -65,8 +65,23 @@ concrete side-by-side comparison against the hub-push nginx-demo.)
   existing push-model setup owns. This is what the local Application
   actually syncs.
 
-## Manual apply (same "ArgoCD is the sole manual install" principle)
-Apply in order, on the **hub**:
+## Applying this: two options
+
+**Option A — automated (recommended once the repo exists on Globe's GitLab)**:
+apply the one Application in `../bootstrap/argocd-per-spoke-bootstrap.yaml`
+on the hub. It owns this whole folder from then on — sync-wave annotations
+on the individual objects (-2 namespace/binding, -1 placement, 0 policies)
+handle ordering, and any future edit to these files just needs a git push,
+not a re-apply. This is the same "ArgoCD is the sole manual install"
+principle as every other root Application in this project — one manual
+apply, not four.
+```
+oc apply -f bootstrap/argocd-per-spoke-bootstrap.yaml
+```
+
+**Option B — fully manual** (useful for a first dry run before the repo
+exists anywhere, or for debugging step by step): apply in order, on the
+**hub**:
 ```
 oc apply -f argocd-per-spoke-prototype/00-namespace-and-binding.yaml
 oc apply -f argocd-per-spoke-prototype/01-placement.yaml
@@ -99,15 +114,21 @@ pattern gets adopted for real business apps later.
 1. **Label every spoke `ManagedCluster`** with `capdev.residency/role=spoke`
    on the hub (see `01-placement.yaml`) — without this, the Placement
    matches nothing and none of these Policies will apply anywhere.
-2. **Replace `<GITLAB_REPO_URL>`** in
-   `03-policy-bootstrap-local-argocd.yaml` with this repo's real GitLab SSH
-   URL once it exists (SSH form: `git@<gitlab-host>:<group>/capdev-cluster-config.git`,
-   not `https://...` — required since auth here is an SSH deploy key, not
-   a token).
-3. **GitLab is private, auth is an SSH deploy key** — the spoke's local
-   ArgoCD has no credentials configured by default (unlike this sandbox's
-   public GitHub repos), so it needs a repository-credential `Secret`
-   before it can clone anything:
+2. **Replace `<GITLAB_SSH_REPO_URL>`** in both
+   `03-policy-bootstrap-local-argocd.yaml` and (if using Option A)
+   `../bootstrap/argocd-per-spoke-bootstrap.yaml` with this repo's real
+   GitLab SSH URL once it exists (SSH form:
+   `git@<gitlab-host>:<group>/capdev-cluster-config.git`, not `https://...`
+   — required since auth here is an SSH deploy key, not a token).
+3. **GitLab is private, auth is an SSH deploy key** — no ArgoCD instance
+   has credentials configured by default (unlike this sandbox's public
+   GitHub repos), so each one needs a repository-credential `Secret`
+   before it can clone anything. That means **two** places now, not one,
+   if using Option A above: the **hub's** existing ArgoCD (to clone this
+   repo for `argocd-per-spoke-bootstrap` itself) and the **spoke's** local
+   ArgoCD (to clone it for the `nginx-demo-pull-model` Application Policy
+   03 creates). Same Secret shape in both places, `openshift-gitops`
+   namespace on whichever cluster:
    ```yaml
    apiVersion: v1
    kind: Secret

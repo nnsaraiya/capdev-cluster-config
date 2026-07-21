@@ -1,0 +1,48 @@
+# The one manually-applied piece that automates everything under
+# argocd-per-spoke-prototype/ — same "ArgoCD is the sole manual install"
+# principle as every other root Application in this project. Before this,
+# 00/01/02/03 in that folder had to be oc apply'd by hand, in order, and
+# re-applied by hand on every edit (which happened several times while
+# fixing real bugs found during testing). This Application makes the hub's
+# existing ArgoCD own that folder instead: push a change, it syncs.
+#
+# destination is the HUB itself — Policy/Placement/PlacementBinding/
+# Namespace are all hub-scoped resources. The Application objects that
+# Policy 03 creates on each SPOKE are a downstream effect of ACM's policy
+# enforcement, not something this Application deploys directly.
+#
+# Kept in its own top-level bootstrap/ directory (a sibling to
+# argocd-per-spoke-prototype/, not nested inside it) specifically so this
+# file's own source.path doesn't have to exclude itself — same reasoning
+# as hub/bootstrap/ needing directory.exclude in the old push-model setup,
+# avoided here by not nesting in the first place.
+#
+# Sync-wave ordering (-2 namespace/binding, -1 placement, 0 policies) is
+# set on the individual objects in argocd-per-spoke-prototype/ — ACM's
+# controllers are self-healing and would likely converge without it, but
+# explicit ordering removes any doubt and matches how this repo already
+# orders namespaces before RoleBindings elsewhere.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-per-spoke-bootstrap
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    # REPLACE before applying to Globe — same GitLab SSH URL as
+    # argocd-per-spoke-prototype/03-policy-bootstrap-local-argocd.yaml.
+    repoURL: <GITLAB_SSH_REPO_URL>/capdev-cluster-config.git
+    targetRevision: main
+    path: argocd-per-spoke-prototype
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: capdev-policies
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

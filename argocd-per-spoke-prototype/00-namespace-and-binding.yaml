@@ -6,6 +6,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 ---
 # Policy/Placement objects need the ManagedClusterSet bound into whatever
 # namespace they live in, same requirement as
@@ -16,5 +18,7 @@ kind: ManagedClusterSetBinding
 metadata:
   name: default
   namespace: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   clusterSet: default

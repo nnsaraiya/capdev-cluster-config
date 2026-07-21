@@ -10,6 +10,8 @@ kind: Policy
 metadata:
   name: install-gitops-operator
   namespace: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   remediationAction: enforce
   disabled: false
@@ -42,6 +44,8 @@ kind: PlacementBinding
 metadata:
   name: install-gitops-operator
   namespace: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 placementRef:
   name: capdev-policies-spoke-placement
   kind: Placement

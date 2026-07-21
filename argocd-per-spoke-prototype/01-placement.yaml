@@ -14,6 +14,8 @@ kind: Placement
 metadata:
   name: capdev-policies-spoke-placement
   namespace: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   clusterSets:
     - default

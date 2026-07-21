@@ -21,6 +21,8 @@ kind: Policy
 metadata:
   name: bootstrap-local-argocd
   namespace: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   remediationAction: enforce
   disabled: false
@@ -100,6 +102,8 @@ kind: PlacementBinding
 metadata:
   name: bootstrap-local-argocd
   namespace: capdev-policies
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 placementRef:
   name: capdev-policies-spoke-placement
   kind: Placement
