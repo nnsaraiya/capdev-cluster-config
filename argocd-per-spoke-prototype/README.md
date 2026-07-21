@@ -100,13 +100,14 @@ pattern gets adopted for real business apps later.
    on the hub (see `01-placement.yaml`) — without this, the Placement
    matches nothing and none of these Policies will apply anywhere.
 2. **Replace `<GITLAB_REPO_URL>`** in
-   `03-policy-bootstrap-local-argocd.yaml` with this repo's real GitLab
-   URL once it exists.
-3. **If the GitLab repo is private (assume it is)**, the spoke's local
-   ArgoCD needs a repository-credential `Secret` before it can clone
-   anything — it has no credentials configured by default, unlike this
-   sandbox's public GitHub repos. Standard shape (HTTPS token; adjust if
-   using an SSH deploy key instead):
+   `03-policy-bootstrap-local-argocd.yaml` with this repo's real GitLab SSH
+   URL once it exists (SSH form: `git@<gitlab-host>:<group>/capdev-cluster-config.git`,
+   not `https://...` — required since auth here is an SSH deploy key, not
+   a token).
+3. **GitLab is private, auth is an SSH deploy key** — the spoke's local
+   ArgoCD has no credentials configured by default (unlike this sandbox's
+   public GitHub repos), so it needs a repository-credential `Secret`
+   before it can clone anything:
    ```yaml
    apiVersion: v1
    kind: Secret
@@ -116,17 +117,27 @@ pattern gets adopted for real business apps later.
      labels:
        argocd.argoproj.io/secret-type: repository
    stringData:
-     url: <GITLAB_REPO_URL>/capdev-cluster-config.git
-     username: <token-username-or-placeholder>
-     password: <TOKEN — never commit the real value>
+     type: git
+     url: git@<gitlab-host>:<group>/capdev-cluster-config.git
+     sshPrivateKey: |
+       -----BEGIN OPENSSH PRIVATE KEY-----
+       ... never commit the real key ...
+       -----END OPENSSH PRIVATE KEY-----
    type: Opaque
    ```
-   This needs to exist on **every** spoke, same "every current and future
-   spoke" scaling concern as everything else here — so it's worth
-   delivering the same way (a `musthave` object-template in a Policy bound
-   to the same Placement), with the real token value populated out-of-band
-   per spoke, never committed to git — same treatment as the HTPasswd
-   secret.
+   Generate the keypair once (`ssh-keygen -t ed25519 -f capdev-deploy-key -N ""`),
+   add the **public** half as a GitLab "Deploy Key" on the repo (read-only
+   is enough), and only the **private** half goes in the Secret above —
+   out-of-band, per spoke, never committed to git, same treatment as the
+   HTPasswd secret. One keypair can be reused across every spoke (it's
+   read-only access to one repo, not a sensitive per-cluster credential),
+   which simplifies distribution: generate it once, deliver the same
+   private key to every spoke via the same Policy mechanism (a `musthave`
+   object-template bound to the same Placement) rather than one per spoke.
+   Also add `capdev-business-apps` and `capdev-shared-bases` as Deploy Keys
+   on the same keypair if this ArgoCD instance needs to read those too —
+   or generate a separate keypair per repo if you'd rather keep read access
+   scoped tightly.
 4. **Confirm OLM catalog reachability** — `02-policy-install-gitops-operator.yaml`
    depends on the `redhat-operators` `CatalogSource` being reachable from
    each spoke. If Globe's spokes are disconnected/mirrored, `source`/

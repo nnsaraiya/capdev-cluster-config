@@ -77,11 +77,12 @@ spec:
                   project: default
                   source:
                     # REPLACE before applying to Globe — this repo's real
-                    # GitLab URL. If GitLab is private/internal (likely),
-                    # ArgoCD also needs a repository-credential Secret (see
-                    # README.md) before it can clone this, regardless of
-                    # what this URL is set to.
-                    repoURL: <GITLAB_REPO_URL>/capdev-cluster-config.git
+                    # GitLab SSH URL (git@<gitlab-host>:<group>/capdev-cluster-config.git).
+                    # Must be SSH form, not https://, since auth is an SSH
+                    # deploy key — ArgoCD also needs a repository-credential
+                    # Secret with that key before it can clone this at all
+                    # (see README.md).
+                    repoURL: <GITLAB_SSH_REPO_URL>/capdev-cluster-config.git
                     targetRevision: main
                     path: argocd-per-spoke-prototype/nginx-demo-local
                   destination:
