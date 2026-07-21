@@ -1,0 +1,19 @@
+# Matches spoke-cluster, mirroring hub/gitops-integration/02-placement.yaml.
+# Kept as its own object (not reused) so this prototype has zero shared
+# state with the real GitOps integration Placement.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: capdev-policies-spoke-placement
+  namespace: capdev-policies
+spec:
+  clusterSets:
+    - default
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchExpressions:
+            - key: name
+              operator: In
+              values:
+                - spoke-cluster

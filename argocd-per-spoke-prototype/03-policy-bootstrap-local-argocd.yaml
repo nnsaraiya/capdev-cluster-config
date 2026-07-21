@@ -1,0 +1,67 @@
+# Creates an Application object directly in the spoke's own (new, local)
+# openshift-gitops namespace — destination.server is
+# https://kubernetes.default.svc, which is LOCAL to whichever cluster this
+# Application actually lands on, not the hub. This is the piece that
+# proves "synced directly on the spoke, independent of the hub" — the
+# spoke's own ArgoCD reconciles this from git on its own, with no ongoing
+# involvement from the hub's ArgoCD or the cluster-proxy tunnel the
+# existing push-model setup depends on.
+#
+# Points at test-payload/ in THIS repo (not spoke-capdev/) deliberately —
+# see README.md for why: pointing this at the same content the existing
+# push-model spoke-capdev-bootstrap Application already owns would mean
+# two independent ArgoCD instances fighting over the same live objects.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: bootstrap-local-argocd
+  namespace: capdev-policies
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: bootstrap-local-argocd
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: argoproj.io/v1alpha1
+                kind: Application
+                metadata:
+                  name: pull-model-test
+                  namespace: openshift-gitops
+                spec:
+                  project: default
+                  source:
+                    repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
+                    targetRevision: main
+                    path: argocd-per-spoke-prototype/test-payload
+                  destination:
+                    server: https://kubernetes.default.svc
+                    namespace: capdev-argocd-per-spoke-test
+                  syncPolicy:
+                    automated:
+                      prune: true
+                      selfHeal: true
+                    syncOptions:
+                      - CreateNamespace=true
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: bootstrap-local-argocd
+  namespace: capdev-policies
+placementRef:
+  name: capdev-policies-spoke-placement
+  kind: Placement
+  apiGroup: cluster.open-cluster-management.io
+subjects:
+  - name: bootstrap-local-argocd
+    kind: Policy
+    apiGroup: policy.open-cluster-management.io

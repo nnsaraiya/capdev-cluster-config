@@ -1,0 +1,52 @@
+# Installs the real OpenShift GitOps Operator on every cluster matched by
+# capdev-policies-spoke-placement, via a plain Subscription in
+# openshift-operators — the standard documented install path, no ACM addon
+# framework involved (deliberately, since that framework's gitops-addon is
+# ACM 2.13+ only and Globe's hub is on 2.11). Once OLM reconciles this, the
+# operator auto-creates a default ArgoCD instance in a new openshift-gitops
+# namespace on that cluster.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: install-gitops-operator
+  namespace: capdev-policies
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: install-gitops-operator
+        spec:
+          remediationAction: enforce
+          severity: high
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operators.coreos.com/v1alpha1
+                kind: Subscription
+                metadata:
+                  name: openshift-gitops-operator
+                  namespace: openshift-operators
+                spec:
+                  channel: latest
+                  name: openshift-gitops-operator
+                  source: redhat-operators
+                  sourceNamespace: openshift-marketplace
+                  installPlanApproval: Automatic
+---
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: install-gitops-operator
+  namespace: capdev-policies
+placementRef:
+  name: capdev-policies-spoke-placement
+  kind: Placement
+  apiGroup: cluster.open-cluster-management.io
+subjects:
+  - name: install-gitops-operator
+    kind: Policy
+    apiGroup: policy.open-cluster-management.io

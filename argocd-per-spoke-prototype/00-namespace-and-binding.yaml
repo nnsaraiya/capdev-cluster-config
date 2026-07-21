@@ -1,0 +1,20 @@
+# Dedicated namespace for this prototype's Policy/Placement/PlacementBinding
+# objects — kept separate from openshift-gitops (where the real
+# GitOpsCluster integration and push-model Applications live) so nothing
+# here is mistaken for, or interferes with, the proven setup.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: capdev-policies
+---
+# Policy/Placement objects need the ManagedClusterSet bound into whatever
+# namespace they live in, same requirement as
+# hub/gitops-integration/01-managedclustersetbinding.yaml — just scoped to
+# capdev-policies instead of openshift-gitops.
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: default
+  namespace: capdev-policies
+spec:
+  clusterSet: default
