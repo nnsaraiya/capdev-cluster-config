@@ -34,6 +34,38 @@ spec:
           remediationAction: enforce
           severity: high
           object-templates:
+            # Red Hat's OpenShift GitOps operator now defaults the ArgoCD
+            # application-controller to a narrow ClusterRole: read
+            # everything, but write only to a curated allow-list of API
+            # groups (operators.coreos.com, config.openshift.io,
+            # user.openshift.io, etc.) — NOT core/apps/route.openshift.io.
+            # Confirmed live: syncing a plain Deployment/Service/Route
+            # failed with "is forbidden" until this RoleBinding existed.
+            # Namespace + RoleBinding are created directly by this Policy
+            # (which runs with the config-policy-controller's own
+            # permissions), ahead of the Application's own first sync, so
+            # there's no ordering race with CreateNamespace=true.
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: Namespace
+                metadata:
+                  name: capdev-argocd-per-spoke-test
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: rbac.authorization.k8s.io/v1
+                kind: RoleBinding
+                metadata:
+                  name: argocd-app-controller-admin
+                  namespace: capdev-argocd-per-spoke-test
+                roleRef:
+                  apiGroup: rbac.authorization.k8s.io
+                  kind: ClusterRole
+                  name: admin
+                subjects:
+                  - kind: ServiceAccount
+                    name: openshift-gitops-argocd-application-controller
+                    namespace: openshift-gitops
             - complianceType: musthave
               objectDefinition:
                 apiVersion: argoproj.io/v1alpha1

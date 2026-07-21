@@ -77,6 +77,22 @@ default ArgoCD to come up (check `oc get csv -n openshift-operators` and
 oc apply -f argocd-per-spoke-prototype/03-policy-bootstrap-local-argocd.yaml
 ```
 
+## Known finding: the default ArgoCD instance can't deploy workloads out of the box
+Red Hat's OpenShift GitOps operator (as of 1.21.1, this sandbox) grants its
+default ArgoCD instance's application-controller a narrow ClusterRole by
+default: read (`get`/`list`/`watch`) on everything, but *write* only to a
+curated allow-list of API groups (`operators.coreos.com`,
+`config.openshift.io`, `user.openshift.io`, etc.) — not core, `apps`, or
+`route.openshift.io`. Confirmed live: the first sync attempt of
+`nginx-demo-local/` failed with `Service/Deployment/Route ... is
+forbidden`. `03-policy-bootstrap-local-argocd.yaml` now also creates a
+`RoleBinding` (admin, scoped to `capdev-argocd-per-spoke-test` only) for
+the ArgoCD app-controller SA before the Application's first sync. This is
+a real, generalizable finding: **any** future spoke's local ArgoCD will
+need an equivalent per-namespace RoleBinding before it can deploy anything
+beyond the operator's own default allow-list — worth remembering if this
+pattern gets adopted for real business apps later.
+
 ## What this does NOT decide yet
 This proves the *mechanism*. It does not migrate `capdev-cluster-config`
 or `capdev-business-apps` off the current hub-push model — that's a
