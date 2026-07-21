@@ -22,3 +22,47 @@ metadata:
     argocd.argoproj.io/sync-wave: "-2"
 spec:
   clusterSet: default
+---
+# Only needed for Option A (bootstrap/argocd-per-spoke-bootstrap.yaml) —
+# Option B (manual oc apply as kube:admin) already has all of this.
+# Confirmed live: the hub's ArgoCD application-controller has the same
+# narrow default write allow-list found on the spoke's local ArgoCD (see
+# argocd-per-spoke-prototype README's "Known finding") — it can't create
+# ManagedClusterSetBinding/Placement/Policy/PlacementBinding out of the
+# box. ManagedClusterSetBinding additionally needs the same
+# managedclustersets/bind admission-webhook grant the old push-model setup
+# needed (and that got deleted along with it during cleanup) — a
+# cluster-scoped authorization check, separate from normal RBAC verbs,
+# that ACM enforces regardless of which identity is doing the binding.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: capdev-argocd-hub-policy-management
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+rules:
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclustersetbindings", "placements"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["cluster.open-cluster-management.io"]
+    resources: ["managedclustersets/bind"]
+    resourceNames: ["default"]
+    verbs: ["create"]
+  - apiGroups: ["policy.open-cluster-management.io"]
+    resources: ["policies", "placementbindings"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: capdev-argocd-hub-policy-management
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: capdev-argocd-hub-policy-management
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
