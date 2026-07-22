@@ -1,0 +1,171 @@
+# Implementation Guide: ArgoCD-per-Spoke (Pull Model) for Globe
+
+## What this gives you
+A hub-orchestrated, ACM Policy-based mechanism that installs a real,
+independent OpenShift GitOps Operator on each spoke and keeps it (and a
+demo Application) self-healing — proven live in the sandbox, including
+recovery from an operator deletion via the OpenShift UI. Built entirely
+on primitives available since before ACM 2.11 (no dependency on the newer
+`gitops-addon` ClusterManagementAddOn, which was introduced in ACM 2.13
+and does not exist that early).
+
+This guide covers the GitOps mechanism only. RBAC/identity rollout is a
+separate track — see `README.md` for what's currently in `hub/rbac/`,
+`spoke-capdev/rbac/`, and `spoke-capdev/namespaces/`, none of which is
+wired into automation yet.
+
+## Phase 0 — Verify prerequisites
+- [ ] ACM 2.11 installed, `MultiClusterHub` healthy
+- [ ] Spoke(s) imported as `ManagedCluster`, joined + available
+- [ ] Real `ManagedClusterSet` name confirmed (`oc get managedclustersets`) — don't assume `default`
+- [ ] OLM catalog reachability confirmed from each spoke — note the real catalog source name if disconnected/mirrored, needed in Phase 3
+
+## Phase 1 — Get this repo into Globe's GitLab
+- [ ] Create the `capdev-cluster-config` repo in GitLab
+- [ ] Push the content
+- [ ] Generate one SSH keypair: `ssh-keygen -t ed25519 -f capdev-deploy-key -N ""`
+- [ ] Add the **public** half as a GitLab Deploy Key (read-only) on the repo
+
+## Phase 2 — Label every spoke
+```
+oc label managedcluster <spoke-name> capdev.residency/role=spoke
+```
+This is what `argocd-per-spoke-prototype/01-placement.yaml` matches on.
+No label, no Policies apply anywhere. Any future spoke just needs this
+same label — no manifest edits required to onboard it.
+
+## Phase 3 — Replace the two `TODO(globe)` repoURLs
+Currently pointing at the sandbox's real public GitHub repo (intentional,
+so this runs live there). Replace in:
+- `bootstrap/argocd-per-spoke-bootstrap.yaml`
+- `argocd-per-spoke-prototype/03-policy-bootstrap-local-argocd.yaml`
+
+With Globe's real GitLab **SSH** URL: `git@<gitlab-host>:<group>/capdev-cluster-config.git`
+(must be SSH form, not `https://` — auth is the deploy key, not a token).
+Commit and push.
+
+If Phase 0 found a disconnected/mirrored catalog, also update
+`source`/`sourceNamespace` in `argocd-per-spoke-prototype/02-policy-install-gitops-operator.yaml`
+to point at Globe's mirror instead of `redhat-operators`/`openshift-marketplace`.
+
+## Phase 4 — Repository-credential Secret, in **two places**
+Private GitLab means no ArgoCD instance can clone by default. Same shape
+both places, `openshift-gitops` namespace:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: capdev-cluster-config-repo-creds
+  namespace: openshift-gitops
+  labels:
+    argocd.argoproj.io/secret-type: repository
+stringData:
+  type: git
+  url: git@<gitlab-host>:<group>/capdev-cluster-config.git
+  sshPrivateKey: |
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    ... never commit the real key ...
+    -----END OPENSSH PRIVATE KEY-----
+type: Opaque
+```
+- **On the hub** — so `argocd-per-spoke-bootstrap` can clone this repo
+- **On every spoke** — so its own local ArgoCD can clone whatever Policy 03 tells it to sync
+
+Never commit the private key. Out-of-band, per cluster, same treatment as
+any other credential in this project.
+
+## Phase 5 — Apply the one manual step
+```
+oc apply -f bootstrap/argocd-per-spoke-bootstrap.yaml
+```
+This is the entire manual footprint. Everything downstream — the
+`capdev-policies` namespace, the RBAC that lets the hub's ArgoCD manage
+Policy/Placement objects, the `Placement`, and both Policies — is created
+by this one Application. Same "ArgoCD is the sole manual install"
+principle used throughout this project.
+
+## Phase 6 — Verify
+```
+# On the hub
+oc get application argocd-per-spoke-bootstrap -n openshift-gitops   # Synced/Healthy
+oc get policy -n capdev-policies                                     # both Compliant
+
+# On each spoke
+oc get csv -n openshift-operators                                    # gitops operator Succeeded
+oc get argocd openshift-gitops -n openshift-gitops -o yaml            # status.phase: Available
+oc get route -n openshift-gitops                                     # openshift-gitops-server present
+oc get application nginx-demo-pull-model -n openshift-gitops          # Synced/Healthy
+```
+
+---
+
+## Gotchas — all found by breaking things live in the sandbox, not theoretical
+
+1. **ArgoCD's default RBAC is narrow** (both hub and spoke instances,
+   confirmed on OpenShift GitOps Operator 1.21.1) — read-everything,
+   write only to a curated allow-list of API groups
+   (`operators.coreos.com`, `config.openshift.io`, `user.openshift.io`,
+   etc.), not core/`apps`/`route.openshift.io`. Any new namespace or
+   resource type an ArgoCD instance needs to manage requires an explicit
+   `RoleBinding`/`ClusterRole` grant first, or sync fails outright with
+   `is forbidden`.
+
+2. **`ManagedClusterSetBinding` needs a separate admission-webhook grant**
+   (`managedclustersets/bind`) beyond normal RBAC verbs — ACM enforces
+   this as its own authorization check regardless of which identity is
+   doing the binding. Already handled in `00-namespace-and-binding.yaml`.
+
+3. **Policy `musthave` only covers exactly what's declared, nothing
+   implied.** Deleting the `Subscription` self-heals (near-instantly,
+   watch-based, not slow polling) because that object is explicitly
+   `musthave`. Deleting just the CSV does **not** self-heal on its own —
+   the Policy never checks the CSV, only the Subscription, so it stays
+   `Compliant` even with the operator's controller pod gone. Only found
+   this by testing both deletion paths separately.
+
+4. **Deleting the `ArgoCD` custom resource itself used to not self-heal
+   at all.** The operator only auto-creates its default instance once, on
+   first-ever install — reinstalling the operator does not recreate an
+   instance it believes already existed. Confirmed live via an actual
+   incident (operator deleted through the OpenShift console). Fixed by
+   adding the `ArgoCD` resource as a second `musthave` object-template in
+   `install-gitops-operator`.
+
+5. **A bare `spec: {}` recreation is not equivalent to the operator's own
+   defaults.** Specifically, `spec.server.route.enabled` defaults to
+   `false` in the raw CRD schema, but the operator's own first-time
+   bootstrap logic sets it `true`. Missing this silently drops the ArgoCD
+   server's own external reachability (the Application still syncs fine
+   — only the ArgoCD UI/API route disappears). The Policy template now
+   sets this explicitly, and it's proven to work: recreating the `ArgoCD`
+   resource a second time after the fix restored the route with zero
+   manual intervention.
+
+6. **`nginx-demo-local/` must stay excluded** from the bootstrap
+   Application's own recursive source path (`directory.exclude` in
+   `bootstrap/argocd-per-spoke-bootstrap.yaml`) — without it, the
+   Application also tries to deploy that test content's raw
+   Deployment/Service/Route directly on the **hub** (its own
+   destination), which is wrong; that content only ever belongs on the
+   spoke, via the nested Application Policy 03 creates there.
+
+7. **Automated sync re-enforces whatever is actually committed in git**,
+   including a broken placeholder URL. Don't enable the automated
+   bootstrap Application before Phase 3's `TODO(globe)` swap is done, or
+   the affected Application resets to `Unknown` sync status on every
+   reconcile (though already-deployed resources aren't pruned, since no
+   new sync ever completes to act on them).
+
+## What this does NOT cover yet
+- RBAC/identity content (`hub/rbac/`, `spoke-capdev/rbac/`,
+  `spoke-capdev/namespaces/`) is real and already matches the actual
+  team, but nothing currently syncs it automatically — only the
+  throwaway `nginx-demo-local` proves the mechanism. Extending Policy 03
+  (or a sibling Policy) to manage this content instead is a separate,
+  deliberately deferred piece of work.
+- Business app onboarding via this pull model — `capdev-business-apps`
+  is still scaffold-only; the pattern would mirror `03-policy-bootstrap-local-argocd.yaml`
+  once there's a real first app to onboard.
+- Hub-federated identity broker (RHSSO/Keycloak + real LDAP) — still
+  Sprint 4 per the original residency plan, independent of everything in
+  this guide.
