@@ -35,44 +35,58 @@ No label, no Policies apply anywhere. Any future spoke just needs this
 same label — no manifest edits required to onboard it.
 
 ## Phase 3 — Replace the two `TODO(globe)` repoURLs
-Currently pointing at the sandbox's real public GitHub repo (intentional,
-so this runs live there). Replace in:
-- `bootstrap/argocd-per-spoke-bootstrap.yaml`
-- `argocd-per-spoke-prototype/03-policy-bootstrap-local-argocd.yaml`
+Currently pointing at the sandbox's real public GitHub repos (intentional,
+so this runs live there). **They point at two different repos** — replace
+each with the matching GitLab **SSH** URL:
 
-With Globe's real GitLab **SSH** URL: `git@<gitlab-host>:<group>/capdev-cluster-config.git`
-(must be SSH form, not `https://` — auth is the deploy key, not a token).
-Commit and push.
+| File | Points at |
+|---|---|
+| `bootstrap/argocd-per-spoke-bootstrap.yaml` | `capdev-cluster-config` (the Policies) |
+| `argocd-per-spoke-prototype/03-policy-bootstrap-local-argocd.yaml` | `capdev-business-apps` (the app manifests) |
+
+SSH form (`git@<gitlab-host>:<group>/<repo>.git`), not `https://` — auth
+is the deploy key, not a token. Commit and push.
 
 If Phase 0 found a disconnected/mirrored catalog, also update
 `source`/`sourceNamespace` in `argocd-per-spoke-prototype/02-policy-install-gitops-operator.yaml`
 to point at Globe's mirror instead of `redhat-operators`/`openshift-marketplace`.
 
-## Phase 4 — Repository-credential Secret, in **two places**
-Private GitLab means no ArgoCD instance can clone by default. Same shape
-both places, `openshift-gitops` namespace:
+## Phase 4 — Repository-credential Secret, in **two places, for different repos**
+Private GitLab means no ArgoCD instance can clone by default. Each cluster
+needs a Secret for the repo *it* must clone:
+
+| Cluster | Needs creds for | Why |
+|---|---|---|
+| **Hub** | `capdev-cluster-config` | to clone the bootstrap Application's source |
+| **Every spoke** | `capdev-business-apps` | to clone the app manifests its local Application syncs |
+
+One deploy keypair can cover both repos — add its public half as a Deploy
+Key on each. Same Secret shape in both places, `openshift-gitops`
+namespace, with `url` set to whichever repo that cluster clones:
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: capdev-cluster-config-repo-creds
+  name: capdev-repo-creds
   namespace: openshift-gitops
   labels:
     argocd.argoproj.io/secret-type: repository
 stringData:
   type: git
-  url: git@<gitlab-host>:<group>/capdev-cluster-config.git
+  url: git@<gitlab-host>:<group>/<repo>.git   # per table above
   sshPrivateKey: |
     -----BEGIN OPENSSH PRIVATE KEY-----
     ... never commit the real key ...
     -----END OPENSSH PRIVATE KEY-----
 type: Opaque
 ```
-- **On the hub** — so `argocd-per-spoke-bootstrap` can clone this repo
-- **On every spoke** — so its own local ArgoCD can clone whatever Policy 03 tells it to sync
-
 Never commit the private key. Out-of-band, per cluster, same treatment as
 any other credential in this project.
+
+**This is the one part of the design that does not scale automatically.**
+Everything else reaches a new spoke the moment it's labeled; this Secret
+must be provisioned by hand on every new spoke, indefinitely, until a real
+secrets-management layer (the deferred PAM/ExternalSecrets work) exists.
 
 ## Phase 5 — Apply the one manual step
 ```
@@ -94,7 +108,8 @@ oc get policy -n capdev-policies                                     # both Comp
 oc get csv -n openshift-operators                                    # gitops operator Succeeded
 oc get argocd openshift-gitops -n openshift-gitops -o yaml            # status.phase: Available
 oc get route -n openshift-gitops                                     # openshift-gitops-server present
-oc get application nginx-demo-pull-model -n openshift-gitops          # Synced/Healthy
+oc get application nginx-demo -n openshift-gitops                     # Synced/Healthy
+oc get pods,route -n nginx-demo                                       # the app itself, running
 ```
 
 ---
@@ -141,13 +156,21 @@ oc get application nginx-demo-pull-model -n openshift-gitops          # Synced/H
    resource a second time after the fix restored the route with zero
    manual intervention.
 
-6. **`nginx-demo-local/` must stay excluded** from the bootstrap
-   Application's own recursive source path (`directory.exclude` in
-   `bootstrap/argocd-per-spoke-bootstrap.yaml`) — without it, the
-   Application also tries to deploy that test content's raw
-   Deployment/Service/Route directly on the **hub** (its own
-   destination), which is wrong; that content only ever belongs on the
-   spoke, via the nested Application Policy 03 creates there.
+6. **Keep `argocd-per-spoke-prototype/` free of workload manifests.**
+   Everything in that folder is applied directly to the **hub** by the
+   bootstrap Application's recursive source. A copy of the demo app once
+   lived there and had to be excluded via `directory.exclude`, because
+   without it the Application tried to deploy the app's
+   Deployment/Service/Route onto the hub. The app now lives in
+   `capdev-business-apps` where it belongs, so no exclude is needed —
+   but adding any workload back into that folder would reintroduce the
+   same bug.
+
+   **Onboarding a new business app therefore takes two edits, not one:**
+   its manifests go in `capdev-business-apps`, *and* its namespace +
+   RoleBinding + Application entries go into Policy 03 (see gotcha 1 —
+   the local ArgoCD can't deploy into a namespace it has no RoleBinding
+   for).
 
 7. **Automated sync re-enforces whatever is actually committed in git**,
    including a broken placeholder URL. Don't enable the automated
@@ -156,16 +179,26 @@ oc get application nginx-demo-pull-model -n openshift-gitops          # Synced/H
    reconcile (though already-deployed resources aren't pruned, since no
    new sync ever completes to act on them).
 
+## Business app onboarding — the established pattern
+`capdev-business-apps` is the real home for workload manifests, and
+`nginx-demo` (in `spoke-capdev/nginx-demo/`) is the working reference. To
+onboard another app:
+1. Add its manifests under `capdev-business-apps/spoke-capdev/<app>/`.
+2. Add three entries to `03-policy-bootstrap-local-argocd.yaml`: its
+   target `Namespace`, an `argocd-app-controller-admin` `RoleBinding` in
+   that namespace, and an `Application` pointing at its path.
+3. Commit both repos and push — the hub's bootstrap Application picks up
+   the Policy change and every matched spoke converges automatically.
+
 ## What this does NOT cover yet
 - RBAC/identity content (`hub/rbac/`, `spoke-capdev/rbac/`,
   `spoke-capdev/namespaces/`) is real and already matches the actual
-  team, but nothing currently syncs it automatically — only the
-  throwaway `nginx-demo-local` proves the mechanism. Extending Policy 03
-  (or a sibling Policy) to manage this content instead is a separate,
-  deliberately deferred piece of work.
-- Business app onboarding via this pull model — `capdev-business-apps`
-  is still scaffold-only; the pattern would mirror `03-policy-bootstrap-local-argocd.yaml`
-  once there's a real first app to onboard.
+  team, but nothing currently syncs it automatically. Extending Policy 03
+  (or a sibling Policy) to manage it is separate, deliberately deferred
+  work — including deciding whether business apps should eventually live
+  in the RBAC-managed `capdev-workloads` namespace rather than their own.
+- An app-of-apps / ApplicationSet layer, if per-app Policy entries ever
+  become too repetitive at scale.
 - Hub-federated identity broker (RHSSO/Keycloak + real LDAP) — still
   Sprint 4 per the original residency plan, independent of everything in
   this guide.

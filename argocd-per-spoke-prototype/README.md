@@ -16,23 +16,25 @@ on the spoke via a Subscription, and (2) bootstrap that spoke's own local
 ArgoCD with an Application, entirely independent of the hub's ArgoCD.
 Whatever works here should also work on Globe's actual hub.
 
-## Why it's not wired into the RBAC/namespace content in this repo
-(`hub-bootstrap`/`spoke-capdev-bootstrap`, the two Applications that used
-to own this content under the retired hub-push model, are gone now — see
-the top-level README.md. The reasoning below still applies to why this
-prototype uses its own throwaway payload rather than `hub/rbac`/
-`spoke-capdev/`.) Two independent ArgoCD instances both trying to own and
-prune the same live RBAC objects is a real risk of ownership flapping or
-unexpected deletion, not just a style concern. Instead, `03-policy-bootstrap-local-argocd.yaml` points the
-spoke's new local ArgoCD at `nginx-demo-local/` in *this* repo path — the
-same nginx-unprivileged workload as `capdev-business-apps`'s `nginx-demo`,
-deployed a second, independent way, into its own non-colliding namespace —
-purely to prove the mechanism (operator installs → local ArgoCD comes up →
-Policy creates a local Application → that Application syncs a real
-workload from git, entirely on its own, independent of the hub) without
-touching anything already relied upon. (An earlier iteration used a bare
-ConfigMap for the same proof; replaced with a real workload for a more
-concrete side-by-side comparison against the hub-push nginx-demo.)
+## What the spoke's local ArgoCD actually syncs
+`03-policy-bootstrap-local-argocd.yaml` points the spoke's local ArgoCD at
+**`capdev-business-apps`** (`spoke-capdev/nginx-demo`) — the real,
+canonical home for business-app workloads. `nginx-demo` is a genuine first
+onboarded app and the reference pattern for future ones, not throwaway
+scaffolding. It deploys into its own dedicated `nginx-demo` namespace.
+
+It deliberately does **not** point at this repo's `hub/rbac/` or
+`spoke-capdev/` content: those describe RBAC/namespace state that is still
+live on both clusters but not currently reconciled by any automation.
+Pointing a second ArgoCD at them would risk two controllers trying to own
+and prune the same objects — real ownership flapping, not a style concern.
+Bringing that content under the pull model is separate, deliberately
+deferred work (see the top-level README.md).
+
+(History, for anyone reading old commits: this previously pointed at a
+`nginx-demo-local/` copy of the app kept inside this folder, purely to
+prove the mechanism in isolation before `capdev-business-apps` was wired
+up. An even earlier iteration used a bare ConfigMap. Both are gone.)
 
 ## What's here
 - `00-namespace-and-binding.yaml` — dedicated `capdev-policies` namespace
@@ -58,12 +60,14 @@ concrete side-by-side comparison against the hub-push nginx-demo.)
   `openshift-gitops` namespace, `destination.server:
   https://kubernetes.default.svc` — local to the spoke, not the hub. This
   is what proves "Applications synced directly on the spoke, independent
-  of the hub" actually works.
-- `nginx-demo-local/` — the same nginx-unprivileged Deployment/Service/
-  Route as `capdev-business-apps`'s `nginx-demo`, in its own namespace
-  (`capdev-argocd-per-spoke-test`) so it can't collide with anything the
-  existing push-model setup owns. This is what the local Application
-  actually syncs.
+  of the hub" actually works. It also creates the app's target namespace
+  and the RoleBinding the local ArgoCD needs to deploy into it.
+
+**Note:** this folder must stay workload-free — everything in it is
+applied directly to the **hub** by `bootstrap/argocd-per-spoke-bootstrap.yaml`.
+The actual business-app manifests live in `capdev-business-apps`
+(`spoke-capdev/nginx-demo/`) and only ever reach the spoke through the
+Application that Policy 03 creates there.
 
 ## Applying this: two options
 
@@ -100,15 +104,17 @@ default ArgoCD instance's application-controller a narrow ClusterRole by
 default: read (`get`/`list`/`watch`) on everything, but *write* only to a
 curated allow-list of API groups (`operators.coreos.com`,
 `config.openshift.io`, `user.openshift.io`, etc.) — not core, `apps`, or
-`route.openshift.io`. Confirmed live: the first sync attempt of
-`nginx-demo-local/` failed with `Service/Deployment/Route ... is
-forbidden`. `03-policy-bootstrap-local-argocd.yaml` now also creates a
-`RoleBinding` (admin, scoped to `capdev-argocd-per-spoke-test` only) for
-the ArgoCD app-controller SA before the Application's first sync. This is
-a real, generalizable finding: **any** future spoke's local ArgoCD will
-need an equivalent per-namespace RoleBinding before it can deploy anything
-beyond the operator's own default allow-list — worth remembering if this
-pattern gets adopted for real business apps later.
+`route.openshift.io`. Confirmed live: the demo app's first sync attempt
+failed with `Service/Deployment/Route ... is forbidden`.
+`03-policy-bootstrap-local-argocd.yaml` now also creates a `RoleBinding`
+(admin, scoped to the app's own `nginx-demo` namespace only) for the
+ArgoCD app-controller SA before the Application's first sync. This is a
+real, generalizable finding and it applies directly to app onboarding:
+**every** business app's target namespace needs an equivalent
+per-namespace RoleBinding before the spoke's local ArgoCD can deploy into
+it. Onboarding a new app therefore means adding its namespace +
+RoleBinding + Application to Policy 03, not just its manifests to
+`capdev-business-apps`.
 
 ## Known finding: the hub's ArgoCD has the same narrow default (Option A only)
 The **same** narrow-allow-list behavior above applies to the hub's
@@ -139,21 +145,23 @@ just get ignored.
 1. **Label every spoke `ManagedCluster`** with `capdev.residency/role=spoke`
    on the hub (see `01-placement.yaml`) — without this, the Placement
    matches nothing and none of these Policies will apply anywhere.
-2. **Replace both `TODO(globe)` `repoURL`s** — in
-   `03-policy-bootstrap-local-argocd.yaml` and (if using Option A)
-   `../bootstrap/argocd-per-spoke-bootstrap.yaml` — with this repo's real
-   GitLab SSH URL once it exists (SSH form:
-   `git@<gitlab-host>:<group>/capdev-cluster-config.git`, not `https://...`
-   — required since auth there is an SSH deploy key, not a token).
+2. **Replace both `TODO(globe)` `repoURL`s — they point at two _different_
+   repos.** `../bootstrap/argocd-per-spoke-bootstrap.yaml` →
+   `capdev-cluster-config`; `03-policy-bootstrap-local-argocd.yaml` →
+   `capdev-business-apps` (that's where the app manifests live). Both in
+   SSH form (`git@<gitlab-host>:<group>/<repo>.git`, not `https://...`),
+   since auth there is an SSH deploy key, not a token.
 3. **GitLab is private, auth is an SSH deploy key** — no ArgoCD instance
    has credentials configured by default (unlike this sandbox's public
    GitHub repos), so each one needs a repository-credential `Secret`
-   before it can clone anything. That means **two** places now, not one,
-   if using Option A above: the **hub's** existing ArgoCD (to clone this
-   repo for `argocd-per-spoke-bootstrap` itself) and the **spoke's** local
-   ArgoCD (to clone it for the `nginx-demo-pull-model` Application Policy
-   03 creates). Same Secret shape in both places, `openshift-gitops`
-   namespace on whichever cluster:
+   before it can clone anything. **Two clusters, and they need creds for
+   different repos:** the **hub's** existing ArgoCD needs
+   `capdev-cluster-config` (to clone the bootstrap Application's source),
+   and the **spoke's** local ArgoCD needs `capdev-business-apps` (to clone
+   the app manifests the `nginx-demo` Application points at). One deploy
+   keypair can cover both repos if you add its public half to each.
+   Same Secret shape in both places, `openshift-gitops` namespace on
+   whichever cluster — set `url` to the repo that cluster must clone:
    ```yaml
    apiVersion: v1
    kind: Secret

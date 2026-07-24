@@ -7,15 +7,20 @@
 # involvement from the hub's ArgoCD or the cluster-proxy tunnel the
 # existing push-model setup depends on.
 #
-# Points at nginx-demo-local/ in THIS repo (not spoke-capdev/, and not
-# capdev-business-apps at all) deliberately — see README.md for why:
-# pointing this at the same content the existing push-model
-# spoke-capdev-bootstrap/nginx-demo Applications already own would mean
-# two independent ArgoCD instances fighting over the same live objects.
-# It's the same nginx-unprivileged workload as capdev-business-apps'
-# nginx-demo, deployed a second, independent way — a direct, visual
-# side-by-side proof that the spoke-local sync produces the same real
-# result as the hub-push model, in its own non-colliding namespace.
+# Points at capdev-business-apps (spoke-capdev/nginx-demo) — the real,
+# canonical home for business-app workloads, NOT a throwaway test payload.
+# This is the reference pattern for onboarding future apps: their manifests
+# live in capdev-business-apps, and this Policy bootstraps a spoke-local
+# Application that syncs them. (Earlier this pointed at a copy under
+# capdev-cluster-config/argocd-per-spoke-prototype/nginx-demo-local/ purely
+# to prove the mechanism in isolation; that copy has been removed now that
+# the app lives in its proper place.)
+#
+# NOTE for Globe: because this now references capdev-business-apps, the
+# spoke's local ArgoCD needs a repository-credential Secret for THAT repo
+# (see README.md) — the hub still needs one for capdev-cluster-config
+# (the bootstrap Application), so the two clusters need creds for
+# different repos.
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
@@ -52,14 +57,14 @@ spec:
                 apiVersion: v1
                 kind: Namespace
                 metadata:
-                  name: capdev-argocd-per-spoke-test
+                  name: nginx-demo
             - complianceType: musthave
               objectDefinition:
                 apiVersion: rbac.authorization.k8s.io/v1
                 kind: RoleBinding
                 metadata:
                   name: argocd-app-controller-admin
-                  namespace: capdev-argocd-per-spoke-test
+                  namespace: nginx-demo
                 roleRef:
                   apiGroup: rbac.authorization.k8s.io
                   kind: ClusterRole
@@ -73,27 +78,27 @@ spec:
                 apiVersion: argoproj.io/v1alpha1
                 kind: Application
                 metadata:
-                  name: nginx-demo-pull-model
+                  name: nginx-demo
                   namespace: openshift-gitops
                 spec:
                   project: default
                   source:
                     # TODO(globe): sandbox's real public GitHub repo, so
                     # this runs live for real here. REPLACE with Globe's
-                    # actual GitLab SSH URL
-                    # (git@<gitlab-host>:<group>/capdev-cluster-config.git)
+                    # actual GitLab SSH URL for capdev-business-apps
+                    # (git@<gitlab-host>:<group>/capdev-business-apps.git)
                     # before/when porting. Must be SSH form, not https://,
                     # once it's GitLab — auth there is an SSH deploy key,
-                    # and ArgoCD (on each spoke) needs a repository-
-                    # credential Secret with that key before it can clone
-                    # this at all (see README.md). Not needed for this
-                    # public GitHub repo.
-                    repoURL: https://github.com/nnsaraiya/capdev-cluster-config.git
+                    # and the SPOKE's local ArgoCD needs a repository-
+                    # credential Secret with that key for capdev-business-apps
+                    # before it can clone this at all (see README.md). Not
+                    # needed for this public GitHub repo.
+                    repoURL: https://github.com/nnsaraiya/capdev-business-apps.git
                     targetRevision: main
-                    path: argocd-per-spoke-prototype/nginx-demo-local
+                    path: spoke-capdev/nginx-demo
                   destination:
                     server: https://kubernetes.default.svc
-                    namespace: capdev-argocd-per-spoke-test
+                    namespace: nginx-demo
                   syncPolicy:
                     automated:
                       prune: true
